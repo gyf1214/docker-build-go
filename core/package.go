@@ -7,6 +7,7 @@ import (
 	"strings"
 )
 
+// PackageInfo retrives go package info based on path
 type PackageInfo struct {
 	Path   string
 	Short  string
@@ -19,6 +20,7 @@ type PackageInfo struct {
 
 const defaultBuild = "__build"
 
+// GetPackageInfo returns the package info based on path
 func GetPackageInfo(path string, cmd string, deps string) (PackageInfo, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {

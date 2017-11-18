@@ -15,6 +15,7 @@ import (
 	"github.com/jhoonb/archivex"
 )
 
+// ImageBuilder is the worker to create docker image
 type ImageBuilder struct {
 	pkg        PackageInfo
 	tmpPath    string
@@ -55,6 +56,7 @@ func init() {
 	}
 }
 
+// NewImageBuild returns an image builder based on package info
 func NewImageBuild(pkg PackageInfo) (*ImageBuilder, error) {
 	tmp, err := ioutil.TempDir(tmpFs, tmpPrefix)
 	if err != nil {
@@ -153,6 +155,7 @@ func (b *ImageBuilder) clean() {
 	os.RemoveAll(b.tmpPath)
 }
 
+// Build is the main building process
 func (b *ImageBuilder) Build() error {
 	defer b.clean()
 
