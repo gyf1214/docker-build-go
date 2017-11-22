@@ -21,6 +21,8 @@ type ImageBuilder struct {
 	dockerFile  string
 	dockerTar   string
 	dockerImage string
+	dockerWd    string
+	dockerBuild string
 }
 
 const (
@@ -29,9 +31,10 @@ const (
 	tmpTar       = "docker.tar"
 	dockerFile   = "Dockerfile"
 	dockerPrefix = "docker-builder-go-"
+	dockerGoSrc  = "/go/src"
 	template     = `FROM golang
 
-ENV WORKING_DIR /go/src/%v
+ENV WORKING_DIR %v
 
 RUN mkdir -p ${WORKING_DIR}
 COPY . ${WORKING_DIR}
@@ -52,12 +55,16 @@ func NewImageBuild(pkg PackageInfo) (*ImageBuilder, error) {
 		return nil, err
 	}
 
+	wd := filepath.Join(dockerGoSrc, pkg.Full)
+
 	ret := &ImageBuilder{
 		pkg:         pkg,
 		tmpPath:     tmp,
 		dockerFile:  filepath.Join(tmp, dockerFile),
 		dockerTar:   filepath.Join(tmp, tmpTar),
 		dockerImage: dockerPrefix + pkg.Short,
+		dockerWd:    wd,
+		dockerBuild: filepath.Join(wd, pkg.Build),
 	}
 
 	err = os.MkdirAll(ret.tmpPath, 0755)
@@ -76,7 +83,7 @@ func (b *ImageBuilder) generateDockerfile() error {
 	}
 
 	_, err = fmt.Fprintf(file, template,
-		b.pkg.Full, b.pkg.Deps, b.pkg.Build, b.pkg.Cmd)
+		b.dockerWd, b.pkg.Deps, b.pkg.Build, b.pkg.Cmd)
 	if err != nil {
 		return err
 	}
@@ -140,15 +147,18 @@ func (b *ImageBuilder) build() error {
 }
 
 func (b *ImageBuilder) Clean() {
+	// delete tmp dir
 	os.RemoveAll(b.tmpPath)
 
+	ctx := context.Background()
+
 	// remove build image
-	docker.ImageRemove(context.Background(), b.dockerImage, types.ImageRemoveOptions{})
+	docker.ImageRemove(ctx, b.dockerImage, types.ImageRemoveOptions{})
 
 	// clean unused images
 	arg := filters.NewArgs()
 	arg.Add("dangling", "1")
-	docker.ImagesPrune(context.Background(), arg)
+	docker.ImagesPrune(ctx, arg)
 }
 
 func (b *ImageBuilder) Build() error {
