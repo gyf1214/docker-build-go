@@ -148,6 +148,7 @@ func (b *ImageBuilder) build() error {
 	return nil
 }
 
+// Clean removes all used images
 func (b *ImageBuilder) Clean() {
 	// delete tmp dir
 	os.RemoveAll(b.tmpPath)

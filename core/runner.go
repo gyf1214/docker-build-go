@@ -1,6 +1,7 @@
 package core
 
 import (
+	"archive/tar"
 	"context"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 )
 
+// BuildRunner run the container & copy back the file
 type BuildRunner struct {
 	image     string
 	build     string
@@ -17,6 +19,7 @@ type BuildRunner struct {
 	container string
 }
 
+// NewBuildRunner return a BuildRunner based on ImageBuilder
 func NewBuildRunner(b *ImageBuilder) *BuildRunner {
 	return &BuildRunner{
 		image:  b.dockerImage,
@@ -25,12 +28,14 @@ func NewBuildRunner(b *ImageBuilder) *BuildRunner {
 	}
 }
 
+// Clean stop and remove the container used
 func (b *BuildRunner) Clean() {
 	docker.ContainerRemove(context.Background(), b.container, types.ContainerRemoveOptions{
 		Force: true,
 	})
 }
 
+// Run run the container to build and copy back
 func (b *BuildRunner) Run() error {
 	ctx := context.Background()
 
@@ -64,13 +69,19 @@ func (b *BuildRunner) Run() error {
 	}
 	defer reader.Close()
 
+	tr := tar.NewReader(reader)
+	_, err = tr.Next()
+	if err != nil {
+		return err
+	}
+
 	file, err := os.Create(b.output)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	_, err = io.Copy(file, reader)
+	_, err = io.Copy(file, tr)
 	if err != nil {
 		return err
 	}
