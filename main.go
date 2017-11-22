@@ -23,14 +23,14 @@ func work() error {
 		return err
 	}
 
-	// defer builder.Clean()
+	defer builder.Clean()
 	err = builder.Build()
 	if err != nil {
 		return err
 	}
 
 	runner := core.NewBuildRunner(builder)
-	// defer runner.Clean()
+	defer runner.Clean()
 	err = runner.Run()
 	if err != nil {
 		return err
