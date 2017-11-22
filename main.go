@@ -12,20 +12,30 @@ var (
 	deps = flag.String("deps", "", "apt-get dependencies")
 )
 
-func main() {
-	flag.Parse()
-
+func work() error {
 	info, err := core.GetPackageInfo(*path, *cmd, *deps)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	builder, err := core.NewImageBuild(info)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	err = builder.Build()
+	defer builder.Clean()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func main() {
+	flag.Parse()
+
+	err := work()
 	if err != nil {
 		panic(err)
 	}

@@ -11,15 +11,17 @@ import (
 	"path/filepath"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"github.com/jhoonb/archivex"
 )
 
 type ImageBuilder struct {
-	pkg        PackageInfo
-	tmpPath    string
-	dockerFile string
-	dockerTar  string
+	pkg         PackageInfo
+	tmpPath     string
+	dockerFile  string
+	dockerTar   string
+	dockerImage string
 }
 
 const (
@@ -62,10 +64,11 @@ func NewImageBuild(pkg PackageInfo) (*ImageBuilder, error) {
 	}
 
 	ret := &ImageBuilder{
-		pkg:        pkg,
-		tmpPath:    tmp,
-		dockerFile: filepath.Join(tmp, dockerFile),
-		dockerTar:  filepath.Join(tmp, tmpTar),
+		pkg:         pkg,
+		tmpPath:     tmp,
+		dockerFile:  filepath.Join(tmp, dockerFile),
+		dockerTar:   filepath.Join(tmp, tmpTar),
+		dockerImage: dockerPrefix + pkg.Short,
 	}
 
 	err = os.MkdirAll(ret.tmpPath, 0755)
@@ -115,8 +118,6 @@ func (b *ImageBuilder) generateTar() error {
 }
 
 func (b *ImageBuilder) build() error {
-	name := dockerPrefix + b.pkg.Short
-
 	tar, err := os.Open(b.dockerTar)
 	defer tar.Close()
 	if err != nil {
@@ -127,7 +128,7 @@ func (b *ImageBuilder) build() error {
 		SuppressOutput: false,
 		Remove:         true,
 		ForceRemove:    true,
-		Tags:           []string{name},
+		Tags:           []string{b.dockerImage},
 	})
 	if err != nil {
 		return err
@@ -149,13 +150,19 @@ func (b *ImageBuilder) build() error {
 	return nil
 }
 
-func (b *ImageBuilder) clean() {
+func (b *ImageBuilder) Clean() {
 	os.RemoveAll(b.tmpPath)
+
+	// remove build image
+	docker.ImageRemove(context.Background(), b.dockerImage, types.ImageRemoveOptions{})
+
+	// clean unused images
+	arg := filters.NewArgs()
+	arg.Add("dangling", "1")
+	docker.ImagesPrune(context.Background(), arg)
 }
 
 func (b *ImageBuilder) Build() error {
-	defer b.clean()
-
 	err := b.generateDockerfile()
 	if err != nil {
 		return err
