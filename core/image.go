@@ -12,7 +12,6 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
-	"github.com/docker/docker/client"
 	"github.com/jhoonb/archivex"
 )
 
@@ -46,16 +45,6 @@ RUN apt-get update &&\
 CMD ["go", "build", "-o", "%v", "%v"]
 `
 )
-
-var docker *client.Client
-
-func init() {
-	var err error
-	docker, err = client.NewEnvClient()
-	if err != nil {
-		panic(err)
-	}
-}
 
 func NewImageBuild(pkg PackageInfo) (*ImageBuilder, error) {
 	tmp, err := ioutil.TempDir(tmpFs, tmpPrefix)
