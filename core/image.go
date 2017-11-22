@@ -11,16 +11,19 @@ import (
 	"path/filepath"
 
 	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/client"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/jhoonb/archivex"
 )
 
 // ImageBuilder is the worker to create docker image
 type ImageBuilder struct {
-	pkg        PackageInfo
-	tmpPath    string
-	dockerFile string
-	dockerTar  string
+	pkg         PackageInfo
+	tmpPath     string
+	dockerFile  string
+	dockerTar   string
+	dockerImage string
+	dockerWd    string
+	dockerBuild string
 }
 
 const (
@@ -29,9 +32,10 @@ const (
 	tmpTar       = "docker.tar"
 	dockerFile   = "Dockerfile"
 	dockerPrefix = "docker-builder-go-"
+	dockerGoSrc  = "/go/src"
 	template     = `FROM golang
 
-ENV WORKING_DIR /go/src/%v
+ENV WORKING_DIR %v
 
 RUN mkdir -p ${WORKING_DIR}
 COPY . ${WORKING_DIR}
@@ -46,16 +50,6 @@ CMD ["go", "build", "-o", "%v", "%v"]
 `
 )
 
-var docker *client.Client
-
-func init() {
-	var err error
-	docker, err = client.NewEnvClient()
-	if err != nil {
-		panic(err)
-	}
-}
-
 // NewImageBuild returns an image builder based on package info
 func NewImageBuild(pkg PackageInfo) (*ImageBuilder, error) {
 	tmp, err := ioutil.TempDir(tmpFs, tmpPrefix)
@@ -63,11 +57,16 @@ func NewImageBuild(pkg PackageInfo) (*ImageBuilder, error) {
 		return nil, err
 	}
 
+	wd := filepath.Join(dockerGoSrc, pkg.Full)
+
 	ret := &ImageBuilder{
-		pkg:        pkg,
-		tmpPath:    tmp,
-		dockerFile: filepath.Join(tmp, dockerFile),
-		dockerTar:  filepath.Join(tmp, tmpTar),
+		pkg:         pkg,
+		tmpPath:     tmp,
+		dockerFile:  filepath.Join(tmp, dockerFile),
+		dockerTar:   filepath.Join(tmp, tmpTar),
+		dockerImage: dockerPrefix + pkg.Short,
+		dockerWd:    wd,
+		dockerBuild: filepath.Join(wd, pkg.Build),
 	}
 
 	err = os.MkdirAll(ret.tmpPath, 0755)
@@ -86,7 +85,7 @@ func (b *ImageBuilder) generateDockerfile() error {
 	}
 
 	_, err = fmt.Fprintf(file, template,
-		b.pkg.Full, b.pkg.Deps, b.pkg.Build, b.pkg.Cmd)
+		b.dockerWd, b.pkg.Deps, b.pkg.Build, b.pkg.Cmd)
 	if err != nil {
 		return err
 	}
@@ -117,8 +116,6 @@ func (b *ImageBuilder) generateTar() error {
 }
 
 func (b *ImageBuilder) build() error {
-	name := dockerPrefix + b.pkg.Short
-
 	tar, err := os.Open(b.dockerTar)
 	defer tar.Close()
 	if err != nil {
@@ -129,7 +126,7 @@ func (b *ImageBuilder) build() error {
 		SuppressOutput: false,
 		Remove:         true,
 		ForceRemove:    true,
-		Tags:           []string{name},
+		Tags:           []string{b.dockerImage},
 	})
 	if err != nil {
 		return err
@@ -151,14 +148,23 @@ func (b *ImageBuilder) build() error {
 	return nil
 }
 
-func (b *ImageBuilder) clean() {
+func (b *ImageBuilder) Clean() {
+	// delete tmp dir
 	os.RemoveAll(b.tmpPath)
+
+	ctx := context.Background()
+
+	// remove build image
+	docker.ImageRemove(ctx, b.dockerImage, types.ImageRemoveOptions{})
+
+	// clean unused images
+	arg := filters.NewArgs()
+	arg.Add("dangling", "1")
+	docker.ImagesPrune(ctx, arg)
 }
 
 // Build is the main building process
 func (b *ImageBuilder) Build() error {
-	defer b.clean()
-
 	err := b.generateDockerfile()
 	if err != nil {
 		return err
