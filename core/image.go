@@ -41,13 +41,14 @@ RUN mkdir -p ${WORKING_DIR}
 COPY . ${WORKING_DIR}
 WORKDIR ${WORKING_DIR}
 
-RUN apt-get update &&\
-    apt-get install %v -y &&\
-    go-wrapper download &&\
+RUN %vgo-wrapper download &&\
     go-wrapper install
 
 CMD ["go", "build", "-o", "%v", "%v"]
 `
+	aptTemp = `apt-get update &&\
+	apt-get install %v -y &&\
+	`
 )
 
 // NewImageBuild returns an image builder based on package info
@@ -84,8 +85,13 @@ func (b *ImageBuilder) generateDockerfile() error {
 		return err
 	}
 
+	apt := ""
+	if b.pkg.Deps != "" {
+		apt = fmt.Sprintf(aptTemp, b.pkg.Deps)
+	}
+
 	_, err = fmt.Fprintf(file, template,
-		b.dockerWd, b.pkg.Deps, b.pkg.Build, b.pkg.Cmd)
+		b.dockerWd, apt, b.pkg.Build, b.pkg.Cmd)
 	if err != nil {
 		return err
 	}
