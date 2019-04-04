@@ -41,8 +41,7 @@ RUN mkdir -p ${WORKING_DIR}
 COPY . ${WORKING_DIR}
 WORKDIR ${WORKING_DIR}
 
-RUN %vgo-wrapper download &&\
-    go-wrapper install
+RUN %vgo get -v %v && go install -v %v
 
 CMD ["go", "build", "-o", "%v", "%v"]
 `
@@ -91,7 +90,7 @@ func (b *ImageBuilder) generateDockerfile() error {
 	}
 
 	_, err = fmt.Fprintf(file, template,
-		b.dockerWd, apt, b.pkg.Build, b.pkg.Cmd)
+		b.dockerWd, apt, b.pkg.Cmd, b.pkg.Cmd, b.pkg.Build, b.pkg.Cmd)
 	if err != nil {
 		return err
 	}
